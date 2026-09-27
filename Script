@@ -1,0 +1,473 @@
+--// SAB HUB! - ONE SCRIPT PROTOTYPE
+--// For your own Roblox game
+--// Put this LocalScript in StarterPlayer > StarterPlayerScripts
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+
+--==================================================
+-- SETTINGS
+--==================================================
+
+local AUTO_STEAL = false
+local AUTO_COLLECT = false
+local AUTO_GRIND = false
+
+local money = 0
+local incomeMultiplier = 1
+
+local baseColor = Color3.fromRGB(255, 80, 80)
+
+--==================================================
+-- CLEAN OLD VERSION
+--==================================================
+
+local oldGui = player.PlayerGui:FindFirstChild("SAB_HUB")
+if oldGui then
+	oldGui:Destroy()
+end
+
+local oldWorld = workspace:FindFirstChild("SAB_HUB_WORLD_" .. player.UserId)
+if oldWorld then
+	oldWorld:Destroy()
+end
+
+--==================================================
+-- WORLD
+--==================================================
+
+local world = Instance.new("Folder")
+world.Name = "SAB_HUB_WORLD_" .. player.UserId
+world.Parent = workspace
+
+-- Base
+local base = Instance.new("Part")
+base.Name = "MyBase"
+base.Size = Vector3.new(28, 1, 28)
+base.Anchored = true
+base.CanCollide = true
+base.Position = Vector3.new(0, 0, 0)
+base.Color = baseColor
+base.Parent = world
+
+-- Spawn platform
+local spawn = Instance.new("SpawnLocation")
+spawn.Size = Vector3.new(8, 1, 8)
+spawn.Anchored = true
+spawn.Position = Vector3.new(0, 1, 0)
+spawn.Transparency = 0.5
+spawn.Parent = world
+
+--==================================================
+-- BRAINROTS
+--==================================================
+
+local brainrots = {}
+
+local function createBrainrot(name, value, position)
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Size = Vector3.new(4, 4, 4)
+	part.Anchored = true
+	part.CanCollide = true
+	part.Position = position
+	part.Color = Color3.fromHSV(math.random(), 0.8, 1)
+	part.Parent = world
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Size = UDim2.new(0, 180, 0, 50)
+	billboard.StudsOffset = Vector3.new(0, 3, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Parent = part
+
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Text = name .. "\n$" .. value
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.TextStrokeTransparency = 0
+	label.TextScaled = true
+	label.Parent = billboard
+
+	local data = {
+		part = part,
+		name = name,
+		value = value,
+		stolen = false
+	}
+
+	table.insert(brainrots, data)
+
+	return data
+end
+
+createBrainrot("Common Brainrot", 10, Vector3.new(20, 2, 20))
+createBrainrot("Rare Brainrot", 25, Vector3.new(-20, 2, 20))
+createBrainrot("Epic Brainrot", 75, Vector3.new(20, 2, -20))
+createBrainrot("Legendary Brainrot", 200, Vector3.new(-20, 2, -20))
+
+--==================================================
+-- GUI
+--==================================================
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "SAB_HUB"
+gui.ResetOnSpawn = false
+gui.Parent = player.PlayerGui
+
+local main = Instance.new("Frame")
+main.Name = "Main"
+main.Size = UDim2.new(0, 430, 0, 390)
+main.Position = UDim2.new(0.5, -215, 0.5, -195)
+main.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+main.BorderSizePixel = 0
+main.Parent = gui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 14)
+corner.Parent = main
+
+--==================================================
+-- TITLE
+--==================================================
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -60, 0, 55)
+title.Position = UDim2.new(0, 15, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = "SAB HUB!"
+title.TextColor3 = Color3.fromRGB(255, 70, 70)
+title.TextSize = 27
+title.Font = Enum.Font.GothamBold
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = main
+
+--==================================================
+-- CLOSE
+--==================================================
+
+local close = Instance.new("TextButton")
+close.Size = UDim2.new(0, 42, 0, 42)
+close.Position = UDim2.new(1, -50, 0, 7)
+close.BackgroundColor3 = Color3.fromRGB(220, 40, 40)
+close.Text = "X"
+close.TextColor3 = Color3.new(1, 1, 1)
+close.TextSize = 20
+close.Font = Enum.Font.GothamBold
+close.Parent = main
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(1, 0)
+closeCorner.Parent = close
+
+--==================================================
+-- MONEY DISPLAY
+--==================================================
+
+local moneyLabel = Instance.new("TextLabel")
+moneyLabel.Size = UDim2.new(1, -30, 0, 35)
+moneyLabel.Position = UDim2.new(0, 15, 0, 55)
+moneyLabel.BackgroundTransparency = 1
+moneyLabel.Text = "Money: $0"
+moneyLabel.TextColor3 = Color3.fromRGB(80, 255, 120)
+moneyLabel.TextSize = 20
+moneyLabel.Font = Enum.Font.GothamBold
+moneyLabel.TextXAlignment = Enum.TextXAlignment.Left
+moneyLabel.Parent = main
+
+--==================================================
+-- BUTTON CREATOR
+--==================================================
+
+local function makeButton(text, y)
+	local button = Instance.new("TextButton")
+	button.Size = UDim2.new(1, -30, 0, 48)
+	button.Position = UDim2.new(0, 15, 0, y)
+	button.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+	button.TextColor3 = Color3.new(1, 1, 1)
+	button.TextSize = 17
+	button.Font = Enum.Font.GothamBold
+	button.Text = text
+	button.AutoButtonColor = true
+	button.Parent = main
+
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, 9)
+	c.Parent = button
+
+	return button
+end
+
+local autoStealButton = makeButton("AUTO STEAL : OFF", 100)
+local moveButton = makeButton("MOVE TO BASE", 155)
+local collectButton = makeButton("AUTO COLLECT : OFF", 210)
+local grindButton = makeButton("AUTO GRIND : OFF", 265)
+local upgradeButton = makeButton("UPGRADE BRAINROTS", 320)
+
+--==================================================
+-- REOPEN BUTTON
+--==================================================
+
+local reopen = Instance.new("TextButton")
+reopen.Size = UDim2.new(0, 55, 0, 55)
+reopen.Position = UDim2.new(0, 20, 0.5, -27)
+reopen.BackgroundColor3 = Color3.fromRGB(220, 40, 40)
+reopen.Text = "S"
+reopen.TextColor3 = Color3.new(1, 1, 1)
+reopen.TextSize = 27
+reopen.Font = Enum.Font.GothamBold
+reopen.Visible = false
+reopen.Parent = gui
+
+local reopenCorner = Instance.new("UICorner")
+reopenCorner.CornerRadius = UDim.new(1, 0)
+reopenCorner.Parent = reopen
+
+--==================================================
+-- MONEY
+--==================================================
+
+local function addMoney(amount)
+	money += math.floor(amount * incomeMultiplier)
+	moneyLabel.Text = "Money: $" .. money
+end
+
+--==================================================
+-- STEAL
+--==================================================
+
+local function stealBrainrot(brainrot)
+	if not brainrot or brainrot.stolen then
+		return
+	end
+
+	brainrot.stolen = true
+	brainrot.part.Position = base.Position + Vector3.new(
+		math.random(-9, 9),
+		3,
+		math.random(-9, 9)
+	)
+
+	brainrot.part.Color = Color3.fromRGB(80, 255, 120)
+end
+
+--==================================================
+-- MOVE TO BASE
+--==================================================
+
+local function moveToBase()
+	local character = player.Character
+	if not character then
+		return
+	end
+
+	local root = character:FindFirstChild("HumanoidRootPart")
+	if root then
+		root.CFrame = base.CFrame + Vector3.new(0, 5, 0)
+	end
+end
+
+--==================================================
+-- AUTO COLLECT
+--==================================================
+
+local function collectAll()
+	for _, brainrot in ipairs(brainrots) do
+		if brainrot.stolen then
+			addMoney(brainrot.value)
+			brainrot.stolen = false
+
+			brainrot.part.Position = Vector3.new(
+				math.random(-25, 25),
+				2,
+				math.random(-25, 25)
+			)
+
+			brainrot.part.Color = Color3.fromHSV(math.random(), 0.8, 1)
+		end
+	end
+end
+
+--==================================================
+-- UPGRADE
+--==================================================
+
+upgradeButton.MouseButton1Click:Connect(function()
+	if money >= 100 then
+		money -= 100
+		incomeMultiplier += 1
+
+		moneyLabel.Text = "Money: $" .. money
+		upgradeButton.Text = "UPGRADED! x" .. incomeMultiplier
+
+		task.wait(1)
+		upgradeButton.Text = "UPGRADE BRAINROTS"
+	end
+end)
+
+--==================================================
+-- BUTTONS
+--==================================================
+
+autoStealButton.MouseButton1Click:Connect(function()
+	AUTO_STEAL = not AUTO_STEAL
+
+	if AUTO_STEAL then
+		autoStealButton.Text = "AUTO STEAL : ON"
+		autoStealButton.BackgroundColor3 = Color3.fromRGB(45, 170, 80)
+	else
+		autoStealButton.Text = "AUTO STEAL : OFF"
+		autoStealButton.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+	end
+end)
+
+moveButton.MouseButton1Click:Connect(function()
+	moveToBase()
+end)
+
+collectButton.MouseButton1Click:Connect(function()
+	AUTO_COLLECT = not AUTO_COLLECT
+
+	if AUTO_COLLECT then
+		collectButton.Text = "AUTO COLLECT : ON"
+		collectButton.BackgroundColor3 = Color3.fromRGB(45, 170, 80)
+	else
+		collectButton.Text = "AUTO COLLECT : OFF"
+		collectButton.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+	end
+end)
+
+grindButton.MouseButton1Click:Connect(function()
+	AUTO_GRIND = not AUTO_GRIND
+
+	if AUTO_GRIND then
+		grindButton.Text = "AUTO GRIND : ON"
+		grindButton.BackgroundColor3 = Color3.fromRGB(45, 170, 80)
+	else
+		grindButton.Text = "AUTO GRIND : OFF"
+		grindButton.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+	end
+end)
+
+--==================================================
+-- CLOSE / OPEN
+--==================================================
+
+close.MouseButton1Click:Connect(function()
+	main.Visible = false
+	reopen.Visible = true
+end)
+
+reopen.MouseButton1Click:Connect(function()
+	main.Visible = true
+	reopen.Visible = false
+end)
+
+--==================================================
+-- DRAGGING
+--==================================================
+
+local dragging = false
+local dragStart
+local startPosition
+
+title.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+
+		dragging = true
+		dragStart = input.Position
+		startPosition = main.Position
+	end
+end)
+
+title.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+
+		dragging = false
+	end
+end)
+
+game:GetService("UserInputService").InputChanged:Connect(function(input)
+	if dragging and (
+		input.UserInputType == Enum.UserInputType.MouseMovement
+		or input.UserInputType == Enum.UserInputType.Touch
+	) then
+
+		local delta = input.Position - dragStart
+
+		main.Position = UDim2.new(
+			startPosition.X.Scale,
+			startPosition.X.Offset + delta.X,
+			startPosition.Y.Scale,
+			startPosition.Y.Offset + delta.Y
+		)
+	end
+end)
+
+--==================================================
+-- AUTOMATION LOOP
+--==================================================
+
+task.spawn(function()
+	while true do
+		task.wait(1)
+
+		if AUTO_STEAL then
+			for _, brainrot in ipairs(brainrots) do
+				if not brainrot.stolen then
+					stealBrainrot(brainrot)
+				end
+			end
+		end
+
+		if AUTO_COLLECT then
+			collectAll()
+		end
+
+		if AUTO_GRIND then
+			for _, brainrot in ipairs(brainrots) do
+				if not brainrot.stolen then
+					stealBrainrot(brainrot)
+				end
+			end
+
+			task.wait(0.5)
+			collectAll()
+		end
+	end
+end)
+
+--==================================================
+-- BASE COLOR
+--==================================================
+
+local colors = {
+	Color3.fromRGB(255, 70, 70),
+	Color3.fromRGB(70, 130, 255),
+	Color3.fromRGB(70, 255, 120),
+	Color3.fromRGB(180, 70, 255),
+	Color3.fromRGB(255, 180, 50),
+	Color3.fromRGB(255, 80, 180)
+}
+
+local colorIndex = 1
+
+base.Touched:Connect(function(hit)
+	local character = player.Character
+	if character and hit:IsDescendantOf(character) then
+		colorIndex += 1
+
+		if colorIndex > #colors then
+			colorIndex = 1
+		end
+
+		baseColor = colors[colorIndex]
+		base.Color = baseColor
+	end
+end)
+
+print("SAB HUB! loaded successfully.")
